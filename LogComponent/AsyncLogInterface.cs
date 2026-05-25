@@ -34,15 +34,18 @@
 
 		private void MainLoop()
 		{
+			
 			while (!this._exit)
 			{
+				try 
+				{
 				// Midnight check 
 				if(DateTime.Now.Date != _curDate.Date)
 				{
 					_curDate = DateTime.Now;
             		this._writer.Flush();
             		this._writer.Close();
-            		this._writer = File.AppendText(@"./LogTest/Log" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff") + ".log");
+            		this._writer = File.AppendText(@"./LogTest/Log" + DateTime.Now.ToString("yyyy-MM-dd HHmmssfff") + ".log");
             		this._writer.Write("Timestamp".PadRight(25, ' ') + "\t" + "Data".PadRight(15, ' ') + "\t" + Environment.NewLine);
             		this._writer.AutoFlush = false;
 				}
@@ -71,11 +74,23 @@
 					if (this._lines.IsEmpty)
 						Thread.Sleep(50);
 				}
+			
+			catch (System.Exception ex)
+			{
+				 Console.WriteLine($"Logger error: {ex}");
 			}
+			}
+			
+			this._writer.Flush();
+			this._writer.Close();
+			this._writer.Dispose();
+		}
+		
 
 		public void Stop_Without_Flush()
 		{
 			this._exit = true;
+			this._runThread.Join();
 		}
 
 		public void Stop_With_Flush()
