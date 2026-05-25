@@ -1,7 +1,8 @@
 ﻿namespace LogTest
 {
 	using System;
-	using System.Collections.Generic;
+    using System.Collections.Concurrent;
+    using System.Collections.Generic;
 	using System.IO;
 	using System.Text;
 	using System.Threading;
@@ -9,7 +10,7 @@
 	public class AsyncLogInterface : LogInterface
 	{
 		private Thread _runThread;
-		private List<LogLine> _lines = new List<LogLine>();
+		private ConcurrentQueue<LogLine> _lines = new ConcurrentQueue<LogLine>();
 
 		private StreamWriter _writer;
 
@@ -41,20 +42,12 @@
 			{
 				if (this._lines.Count > 0)
 				{
-					int f = 0;
-					List<LogLine> _handled = new List<LogLine>();
-
-					foreach (LogLine logLine in this._lines)
+					int processed = 0;
+					while(processed < 5 && this._lines.TryDequeue(out LogLine logLine))
 					{
-						f++;
-
-						if (f > 5)
-							continue;
-
+						processed++;
 						if (!this._exit || this._QuitWithFlush)
 						{
-							_handled.Add(logLine);
-
 							StringBuilder stringBuilder = new StringBuilder();
 
 							if ((DateTime.Now - _curDate).Days != 0)
@@ -83,12 +76,7 @@
 						}
 					}
 
-					for (int y = 0; y < _handled.Count; y++)
-					{
-						this._lines.Remove(_handled[y]);
-					}
-
-					if (this._QuitWithFlush == true && this._lines.Count == 0)
+					if (this._QuitWithFlush && this._lines.IsEmpty)
 						this._exit = true;
 
 					Thread.Sleep(50);
@@ -108,7 +96,7 @@
 
 		public void WriteLog(string s)
 		{
-			this._lines.Add(new LogLine() {Text = s, Timestamp = DateTime.Now});
+			this._lines.Enqueue(new LogLine() {Text = s, Timestamp = DateTime.Now});
 		}
 	}
 }
