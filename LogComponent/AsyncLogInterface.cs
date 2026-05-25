@@ -2,7 +2,6 @@
 {
 	using System;
     using System.Collections.Concurrent;
-    using System.Collections.Generic;
 	using System.IO;
 	using System.Text;
 	using System.Threading;
@@ -11,7 +10,7 @@
 	{
 		private Thread _runThread;
 		private ConcurrentQueue<LogLine> _lines = new ConcurrentQueue<LogLine>();
-
+		private DateTime _curDate = DateTime.Now;
 		private StreamWriter _writer;
 
 		private bool _exit;
@@ -25,7 +24,7 @@
 
 			this._writer.Write("Timestamp".PadRight(25, ' ') + "\t" + "Data".PadRight(15, ' ') + "\t" + Environment.NewLine);
 
-			this._writer.AutoFlush = true;
+			this._writer.AutoFlush = false;
 
 			this._runThread = new Thread(this.MainLoop);
 			this._runThread.Start();
@@ -33,56 +32,46 @@
 
 		private bool _QuitWithFlush = false;
 
-
-		DateTime _curDate = DateTime.Now;
-
 		private void MainLoop()
 		{
 			while (!this._exit)
 			{
-				if (this._lines.Count > 0)
+				// Midnight check 
+				if(DateTime.Now.Date != _curDate.Date)
 				{
-					int processed = 0;
-					while(processed < 5 && this._lines.TryDequeue(out LogLine logLine))
+					_curDate = DateTime.Now;
+            		this._writer.Flush();
+            		this._writer.Close();
+            		this._writer = File.AppendText(@"./LogTest/Log" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff") + ".log");
+            		this._writer.Write("Timestamp".PadRight(25, ' ') + "\t" + "Data".PadRight(15, ' ') + "\t" + Environment.NewLine);
+            		this._writer.AutoFlush = false;
+				}
+
+				if (!this._lines.IsEmpty)	
 					{
-						processed++;
-						if (!this._exit || this._QuitWithFlush)
+						StringBuilder stringBuilder = new StringBuilder();
+						while (this._lines.TryDequeue(out LogLine logLine))
 						{
-							StringBuilder stringBuilder = new StringBuilder();
-
-							if ((DateTime.Now - _curDate).Days != 0)
-							{
-								_curDate = DateTime.Now;
-
-								this._writer = File.AppendText(@"./LogTest/Log" + DateTime.Now.ToString("yyyyMMdd HHmmss fff") + ".log");
-
-								this._writer.Write("Timestamp".PadRight(25, ' ') + "\t" + "Data".PadRight(15, ' ') + "\t" + Environment.NewLine);
-
-								stringBuilder.Append(Environment.NewLine);
-
-								this._writer.Write(stringBuilder.ToString());
-
-								this._writer.AutoFlush = true;
-							}
-
 							stringBuilder.Append(logLine.Timestamp.ToString("yyyy-MM-dd HH:mm:ss:fff"));
 							stringBuilder.Append("\t");
 							stringBuilder.Append(logLine.LineText());
 							stringBuilder.Append("\t");
-
 							stringBuilder.Append(Environment.NewLine);
-
-							this._writer.Write(stringBuilder.ToString());
+						}
+						if (stringBuilder.Length > 0)
+						{
+							this._writer.Write(stringBuilder.ToString()); // single write per batch
+							this._writer.Flush();
 						}
 					}
 
 					if (this._QuitWithFlush && this._lines.IsEmpty)
 						this._exit = true;
 
-					Thread.Sleep(50);
+					if (this._lines.IsEmpty)
+						Thread.Sleep(50);
 				}
 			}
-		}
 
 		public void Stop_Without_Flush()
 		{
@@ -92,6 +81,7 @@
 		public void Stop_With_Flush()
 		{
 			this._QuitWithFlush = true;
+			this._runThread.Join();
 		}
 
 		public void WriteLog(string s)
