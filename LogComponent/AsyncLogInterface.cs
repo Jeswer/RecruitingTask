@@ -24,7 +24,7 @@
 
 			this._writer.Write("Timestamp".PadRight(25, ' ') + "\t" + "Data".PadRight(15, ' ') + "\t" + Environment.NewLine);
 
-			this._writer.AutoFlush = true;
+			this._writer.AutoFlush = false;
 
 			this._runThread = new Thread(this.MainLoop);
 			this._runThread.Start();
@@ -81,6 +81,7 @@
 		public void Stop_With_Flush()
 		{
 			this._QuitWithFlush = true;
+			this._runThread.Join();
 		}
 
 		public void WriteLog(string s)
